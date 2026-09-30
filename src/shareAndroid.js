@@ -1,164 +1,146 @@
-import {
-  buildCsvFile,
-  downloadFile
-} from "./export";
-
+import { buildCsvFile, downloadFile } from "./export";
 
 export async function shareAndroid(records) {
 
   if (!records || records.length === 0) {
-
     return {
       ok: false,
       method: "none",
-      message:
-        "No hay registros para compartir.",
+      message: "No hay registros para compartir.",
     };
   }
 
-
   // ==========================================================
-  // Crear CSV
+  // 1. Crear CSV
   // ==========================================================
 
-  const file =
-    buildCsvFile(records);
+  const file = buildCsvFile(records);
 
-
-  console.log(
-    "Android - archivo:",
-    file.name
-  );
-
-  console.log(
-    "Android - tipo:",
-    file.type
-  );
-
-  console.log(
-    "Android - tamaño:",
-    file.size
-  );
+  console.log("Android - CSV:", file.name);
 
 
   // ==========================================================
-  // Verificar Web Share
-  // ==========================================================
-
-  const hasShare =
-    typeof navigator.share === "function";
-
-  const hasCanShare =
-    typeof navigator.canShare === "function";
-
-
-  console.log(
-    "Android - navigator.share:",
-    hasShare
-  );
-
-  console.log(
-    "Android - navigator.canShare:",
-    hasCanShare
-  );
-
-
-  // ==========================================================
-  // Intentar compartir CSV
-  // ==========================================================
-
-  if (
-    hasShare &&
-    hasCanShare
-  ) {
-
-    try {
-
-      const shareData = {
-        files: [file],
-      };
-
-
-      const canShareFile =
-        navigator.canShare(
-          shareData
-        );
-
-
-      console.log(
-        "Android - puede compartir archivo:",
-        canShareFile
-      );
-
-
-      if (canShareFile) {
-
-        await navigator.share({
-          files: [file],
-        });
-
-
-        return {
-          ok: true,
-          method: "android-file",
-          message:
-            "CSV compartido correctamente.",
-        };
-      }
-
-    } catch (error) {
-
-      console.error(
-        "Android - error compartiendo CSV:",
-        error
-      );
-
-
-      if (
-        error?.name === "AbortError"
-      ) {
-
-        return {
-          ok: false,
-          method: "cancelled",
-          message:
-            "Compartir cancelado.",
-        };
-      }
-    }
-  }
-
-
-  // ==========================================================
-  // FALLBACK ANDROID
+  // 2. Descargar CSV
   // ==========================================================
 
   try {
-
     downloadFile(file);
-
-
-    return {
-      ok: true,
-      method: "download-android",
-      message:
-        "Android no permite compartir el CSV directamente desde la web. El archivo fue descargado; puedes compartirlo desde Descargas.",
-    };
-
-
   } catch (error) {
-
-    console.error(
-      "Android - error descargando:",
-      error
-    );
-
+    console.error("Error descargando CSV:", error);
 
     return {
       ok: false,
       method: "download-error",
-      message:
-        "No fue posible compartir ni descargar el CSV.",
+      message: "No fue posible descargar el CSV.",
     };
   }
-}
+
+
+  // ==========================================================
+  // 3. Abrir selector de archivo
+  //
+  // IMPORTANTE:
+  // El navegador no nos permite abrir directamente
+  // el selector de archivos del sistema después
+  // de una descarga.
+  //
+  // Por eso usamos un input tipo file.
+  // ==========================================================
+
+  return new Promise((resolve) => {
+
+    const input =
+      document.createElement("input");
+
+    input.type = "file";
+    input.accept = ".csv,text/csv";
+
+    input.style.display = "none";
+
+    document.body.appendChild(input);
+
+
+    input.onchange = async (event) => {
+
+      const selectedFile =
+        event.target.files?.[0];
+
+
+      input.remove();
+
+
+      if (!selectedFile) {
+
+        resolve({
+          ok: false,
+          method: "cancelled",
+          message:
+            "No se selecciono ningun archivo.",
+        });
+
+        return;
+      }
+
+
+      // ======================================================
+      // 4. Intentar compartir el archivo seleccionado
+      // ======================================================
+
+      if (
+        typeof navigator.share !== "function"
+      ) {
+
+        resolve({
+          ok: false,
+          method: "unsupported",
+          message:
+            "Este navegador no permite compartir archivos.",
+        });
+
+        return;
+      }
+
+
+      if (
+        typeof navigator.canShare === "function"
+      ) {
+
+        try {
+
+          const shareData = {
+            files: [selectedFile],
+          };
+
+
+          const canShare =
+            navigator.canShare(
+              shareData
+            );
+
+
+          console.log(
+            "Android - archivo seleccionado compartible:",
+            canShare
+          );
+
+
+          if (!canShare) {
+
+            resolve({
+              ok: false,
+              method: "unsupported-file",
+              message:
+                "El navegador no permite compartir este archivo.",
+            });
+
+            return;
+          }
+
+
+          await navigator.share({
+            files: [selectedFile],
+          });
+
+
+          resolve({
+            ok: true
