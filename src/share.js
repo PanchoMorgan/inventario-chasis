@@ -9,35 +9,39 @@ export async function shareRecords(records) {
     };
   }
 
+
   // ==========================================================
-  // Crear CSV
+  // Crear archivo CSV
   // ==========================================================
 
-  const file = buildCsvFile(records);
+  const file =
+    buildCsvFile(records);
 
-  console.log("=== PRUEBA DE COMPARTIR CSV ===");
-  console.log("Archivo:", file.name);
-  console.log("Tipo:", file.type);
-  console.log("Tamaño:", file.size);
 
   console.log(
-    "navigator.share:",
-    typeof navigator.share
+    "Archivo:",
+    file.name
   );
 
   console.log(
-    "navigator.canShare:",
-    typeof navigator.canShare
+    "Tipo:",
+    file.type
+  );
+
+  console.log(
+    "Tamaño:",
+    file.size
   );
 
 
   // ==========================================================
-  // Verificar soporte de compartir archivos
+  // Verificar Web Share
   // ==========================================================
 
   if (
     typeof navigator.share !== "function"
   ) {
+
     return {
       ok: false,
       message:
@@ -49,37 +53,35 @@ export async function shareRecords(records) {
   if (
     typeof navigator.canShare !== "function"
   ) {
+
     return {
       ok: false,
       message:
-        "Este navegador no permite comprobar archivos compartibles.",
+        "Este navegador no soporta compartir archivos.",
     };
   }
 
 
+  // ==========================================================
+  // IMPORTANTE:
+  //
+  // Probar SOLO files.
+  //
+  // Sin title.
+  // Sin text.
+  // ==========================================================
+
   const shareData = {
-    title:
-      "Registro de camiones Scania",
-
-    text:
-      `${records.length} camiones registrados.`,
-
-    files: [
-      file
-    ],
+    files: [file]
   };
 
 
-  // ==========================================================
-  // Comprobar si el archivo puede compartirse
-  // ==========================================================
-
-  let puedeCompartirArchivo = false;
+  let supported = false;
 
 
   try {
 
-    puedeCompartirArchivo =
+    supported =
       navigator.canShare(
         shareData
       );
@@ -87,83 +89,71 @@ export async function shareRecords(records) {
   } catch (error) {
 
     console.error(
-      "Error en canShare:",
+      "Error canShare:",
       error
     );
-
-    return {
-      ok: false,
-      message:
-        "El navegador no pudo comprobar si puede compartir el CSV.",
-    };
   }
 
 
   console.log(
     "Puede compartir CSV:",
-    puedeCompartirArchivo
+    supported
   );
 
 
-  // ==========================================================
-  // COMPARTIR CSV
-  // ==========================================================
+  if (!supported) {
 
-  if (puedeCompartirArchivo) {
-
-    try {
-
-      await navigator.share(
-        shareData
-      );
-
-
-      return {
-        ok: true,
-        method: "csv",
-        message:
-          "✅ CSV enviado al menú de compartir.",
-      };
-
-    } catch (error) {
-
-      console.error(
-        "Error compartiendo CSV:",
-        error
-      );
-
-
-      if (
-        error?.name === "AbortError"
-      ) {
-
-        return {
-          ok: false,
-          method: "cancelled",
-          message:
-            "Compartir cancelado.",
-        };
-      }
-
-
-      return {
-        ok: false,
-        method: "share-error",
-        message:
-          `Error al compartir CSV: ${error.name || "desconocido"}`,
-      };
-    }
+    return {
+      ok: false,
+      message:
+        "El navegador no acepta este CSV para compartir.",
+    };
   }
 
 
   // ==========================================================
-  // EL NAVEGADOR NO ACEPTA ARCHIVOS
+  // Compartir SOLO archivo
   // ==========================================================
 
-  return {
-    ok: false,
-    method: "unsupported-file",
-    message:
-      "El navegador permite compartir texto, pero no permite compartir archivos CSV desde esta aplicación.",
-  };
+  try {
+
+    await navigator.share({
+      files: [file]
+    });
+
+
+    return {
+      ok: true,
+      method: "csv-file",
+      message:
+        "CSV enviado al menú de compartir.",
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error share:",
+      error
+    );
+
+
+    if (
+      error?.name === "AbortError"
+    ) {
+
+      return {
+        ok: false,
+        message:
+          "Compartir cancelado.",
+      };
+    }
+
+
+    return {
+      ok: false,
+      message:
+        `Error CSV: ${error.name || "desconocido"}`,
+    };
+  }
 }
