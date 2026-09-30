@@ -1,94 +1,82 @@
+import { buildCsvFile } from "./export";
+
 export async function shareRecords(records) {
-
   if (!records.length) {
-
     return {
       ok: false,
-      message:
-        "No hay registros para compartir.",
+      message: "No hay registros para compartir.",
     };
   }
 
+  // ==========================================================
+  // Crear el CSV
+  // ==========================================================
 
-  const texto = records
-    .map((record) => {
+  const file = buildCsvFile(records);
 
-      const fecha =
-        new Date(record.fecha)
-          .toLocaleString("es-CL");
+  // ==========================================================
+  // Verificar si el navegador soporta compartir archivos
+  // ==========================================================
 
-      return (
-        `${record.chassis || ""}\t` +
-        `${record.popid || ""}\t` +
-        `${fecha}`
-      );
-
-    })
-    .join("\n");
-
-
-  const contenido =
-    `Registro de camiones Scania\n\n` +
-    `Total: ${records.length}\n\n` +
-    `Chassis\tPopID\tFecha/Hora\n` +
-    texto;
-
-
-  // -----------------------------
-  // Intentar menú nativo
-  // -----------------------------
-
-  if (typeof navigator.share === "function") {
+  if (
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+  ) {
+    const shareData = {
+      title: "Registro de camiones Scania",
+      text: `${records.length} camiones registrados.`,
+      files: [file],
+    };
 
     try {
+      const puedeCompartirArchivo =
+        navigator.canShare(shareData);
 
-      await navigator.share({
-        title:
-          "Registro de camiones Scania",
+      console.log(
+        "¿Puede compartir archivo?",
+        puedeCompartirArchivo
+      );
 
-        text:
-          contenido,
-      });
+      if (puedeCompartirArchivo) {
+        await navigator.share(shareData);
 
+        return {
+          ok: true,
+          method: "file-share",
+          message:
+            "Archivo CSV enviado mediante el menu de compartir.",
+        };
+      }
 
-      return {
-        ok: true,
-        message:
-          "Menú de compartir abierto.",
-      };
+      console.log(
+        "Este navegador no permite compartir archivos mediante Web Share."
+      );
 
     } catch (error) {
 
       if (error?.name === "AbortError") {
-
         return {
           ok: false,
-          message:
-            "Compartir cancelado.",
+          method: "cancelled",
+          message: "Compartir cancelado.",
         };
       }
 
       console.error(
-        "Error al compartir:",
+        "Error compartiendo archivo:",
         error
       );
-
-      return {
-        ok: false,
-        message:
-          "No fue posible abrir el menú de compartir.",
-      };
     }
   }
 
-
-  // -----------------------------
-  // No compatible
-  // -----------------------------
+  // ==========================================================
+  // NO hacemos fallback automatico a texto.
+  // ==========================================================
 
   return {
     ok: false,
+    method: "unsupported",
     message:
-      "Este navegador no permite compartir directamente.",
+      "Este telefono/navegador no permite compartir archivos CSV directamente desde la web.",
   };
 }
