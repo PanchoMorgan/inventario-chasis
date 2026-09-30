@@ -1,4 +1,5 @@
 export async function shareRecords(records) {
+
   if (!records.length) {
     return {
       ok: false,
@@ -7,37 +8,91 @@ export async function shareRecords(records) {
   }
 
   // ==========================================================
-  // PRUEBA 1: compartir texto simple
+  // Construir texto con todos los registros
   // ==========================================================
 
-  if (typeof navigator.share !== "function") {
+  const encabezado =
+    "REGISTRO DE CAMIONES SCANIA\n\n" +
+    `Total de camiones: ${records.length}\n\n` +
+    "Chassis\tPopID\tFecha/Hora\n";
+
+  const filas = records
+    .map((record) => {
+
+      const fecha = new Date(
+        record.fecha
+      ).toLocaleString("es-CL");
+
+      return (
+        `${record.chassis || ""}\t` +
+        `${record.popid || ""}\t` +
+        `${fecha}`
+      );
+
+    })
+    .join("\n");
+
+  const contenido =
+    encabezado + filas;
+
+
+  // ==========================================================
+  // Compartir mediante el menú nativo
+  // ==========================================================
+
+  if (
+    typeof navigator.share !== "function"
+  ) {
+
     return {
       ok: false,
       message:
-        "Este navegador no dispone de navigator.share.",
+        "Este navegador no permite compartir.",
     };
   }
 
+
   try {
+
     await navigator.share({
-      title: "Prueba Scania",
-      text: "Prueba de compartir desde la app Scania.",
+
+      title:
+        "Registro de camiones Scania",
+
+      text:
+        contenido,
     });
+
 
     return {
       ok: true,
-      method: "simple-text",
+      method: "text",
       message:
-        "✅ El menu nativo de compartir funciona.",
+        `✅ ${records.length} registros enviados al menú de compartir.`,
     };
 
   } catch (error) {
 
-    console.error("Share error:", error);
+    console.error(
+      "Error al compartir:",
+      error
+    );
+
+
+    if (
+      error?.name === "AbortError"
+    ) {
+
+      return {
+        ok: false,
+        message:
+          "Compartir cancelado.",
+      };
+    }
+
 
     return {
       ok: false,
-      method: "error",
       message:
         `Error al compartir: ${error.name || "desconocido"}`,
     };
