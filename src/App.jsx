@@ -82,20 +82,19 @@ export default function App() {
     }
   };
 
-  // Enviar registro directamente a la Lista de SharePoint
+  // Enviar registro directamente a la Lista de SharePoint dentro del iframe
   const handleSave = async () => {
     if (!chassisNumber && !popIdNumber) return;
 
     setSaving(true);
-    setStatus({ message: 'Enviando datos a la Lista de SharePoint...', type: 'info' });
+    setStatus({ message: 'Guardando registro en la Lista de SharePoint...', type: 'info' });
 
     const now = new Date();
-    const fecha = now.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    const hora = now.toLocaleTimeString('es-CL');  // Formato HH:MM:SS
+    const fecha = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const hora = now.toLocaleTimeString('es-CL');  // HH:MM:SS
 
-    // Objeto mapeado a los campos de SharePoint
     const payload = {
-      Title: chassisNumber || '', // Columna 'Title' del sistema renombrada visualmente a Chassis
+      Title: chassisNumber || '', // Columna Title del sistema renombrada a Chassis
       PopID: popIdNumber || '',
       Ubicacion: location,
       Usuario: userEmail,
@@ -104,18 +103,26 @@ export default function App() {
     };
 
     try {
-      // 1. Obtener el Request Digest token de SharePoint para autorizar el POST
-      const digestResponse = await fetch(`${SHAREPOINT_SITE_URL}/_api/contextinfo`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json;odata=verbose'
-        }
-      });
+      let requestDigest = '';
       
-      const digestData = await digestResponse.json();
-      const requestDigest = digestData.d.GetContextWebInformation.FormDigestValue;
+      // 1. Obtener el RequestDigest token directamente de SharePoint
+      if (window.parent && window.parent.document && window.parent.document.getElementById('__REQUESTDIGEST')) {
+        requestDigest = window.parent.document.getElementById('__REQUESTDIGEST').value;
+      } else {
+        const digestResponse = await fetch(`${SHAREPOINT_SITE_URL}/_api/contextinfo`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json;odata=verbose',
+            'Content-Type': 'application/json;odata=verbose'
+          },
+          credentials: 'include'
+        });
+        
+        const digestData = await digestResponse.json();
+        requestDigest = digestData.d.GetContextWebInformation.FormDigestValue;
+      }
 
-      // 2. Insertar el ítem en la Lista
+      // 2. Enviar el registro a la Lista
       const response = await fetch(`${SHAREPOINT_SITE_URL}/_api/web/lists/getbytitle('${LIST_NAME}')/items`, {
         method: 'POST',
         headers: {
@@ -123,13 +130,13 @@ export default function App() {
           'Content-Type': 'application/json;odata=verbose',
           'X-RequestDigest': requestDigest
         },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        setStatus({ message: '✅ Registro guardado exitosamente en la Lista de SharePoint!', type: 'success' });
+        setStatus({ message: '✅ Registro guardado exitosamente en SharePoint!', type: 'success' });
         
-        // Limpiar formulario dejando fija la ubicación y el usuario
         setTimeout(() => {
           setImage(null);
           setChassisNumber('');
@@ -143,7 +150,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Error de conexión:", error);
-      setStatus({ message: '⚠️ Error de red/autenticación al guardar.', type: 'error' });
+      setStatus({ message: '⚠️ Error de autenticación/red al guardar.', type: 'error' });
     } finally {
       setSaving(false);
     }
