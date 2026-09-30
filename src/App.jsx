@@ -1,86 +1,214 @@
 import React, { useState, useRef } from 'react';
 import Tesseract from 'tesseract.js';
 
+// Configuración de SharePoint
+const SHAREPOINT_SITE_URL = "https://scaniaazureservices.sharepoint.com/teams/BusinessIntelligence616";
+const LIST_NAME = "InventarioChasis";
+
 export default function App() {
+  // Guardar ubicación seleccionada en localStorage para mantenerla en la sesión
+  const [location, setLocation] = useState(() => {
+    return localStorage.getItem('inventario_ubicacion') || 'Santiago Norte';
+  });
+
   const [image, setImage] = useState(null);
-  const [chassiNumber, setChassiNumber] = useState('');
+  const [chassisNumber, setChassisNumber] = useState('');
   const [popIdNumber, setPopIdNumber] = useState('');
+  const [userEmail, setUserEmail] = useState(() => {
+    return localStorage.getItem('inventario_usuario') || 'Operador';
+  });
+  
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState('');
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState({ message: '', type: '' });
   
   const fileInputRef = useRef(null);
 
-  // Procesar foto seleccionada o tomada con la cámara
+  const handleLocationChange = (e) => {
+    const newLocation = e.target.value;
+    setLocation(newLocation);
+    localStorage.setItem('inventario_ubicacion', newLocation);
+  };
+
+  const handleUserChange = (e) => {
+    const newUser = e.target.value;
+    setUserEmail(newUser);
+    localStorage.setItem('inventario_usuario', newUser);
+  };
+
+  // Escaneo OCR con Tesseract.js
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const imageUrl = URL.createObjectURL(file);
     setImage(imageUrl);
-    setSavedSuccess(false);
+    setStatus({ message: 'Procesando imagen con OCR...', type: 'info' });
     setLoading(true);
-    setStatus('Procesando imagen con OCR...');
-    setChassiNumber('');
+    setChassisNumber('');
     setPopIdNumber('');
 
     try {
-      // Analizar texto con Tesseract.js
       const { data: { text } } = await Tesseract.recognize(imageUrl, 'eng', {
         logger: (m) => {
           if (m.status === 'recognizing text') {
-            setStatus(`Analizando números... ${Math.round(m.progress * 100)}%`);
+            setStatus({ message: `Analizando números... ${Math.round(m.progress * 100)}%`, type: 'info' });
           }
         },
       });
 
-      // 1. Extraer números de exactamente 7 dígitos (Prioridad: Chassi)
-      const chassiMatches = text.match(/\b\d{7}\b/g);
-      // 2. Extraer números de exactamente 6 dígitos (Pop Id)
+      // Extraer Chassis (7 dígitos) y Pop ID (6 dígitos)
+      const chassisMatches = text.match(/\b\d{7}\b/g);
       const popMatches = text.match(/\b\d{6}\b/g);
 
-      if (chassiMatches && chassiMatches.length > 0) {
-        setChassiNumber(chassiMatches[0]);
+      if (chassisMatches && chassisMatches.length > 0) {
+        setChassisNumber(chassisMatches[0]);
       }
 
       if (popMatches && popMatches.length > 0) {
         setPopIdNumber(popMatches[0]);
       }
 
-      if ((chassiMatches && chassiMatches.length > 0) || (popMatches && popMatches.length > 0)) {
-        setStatus('¡Campos detectados! Revisa y confirma.');
+      if ((chassisMatches && chassisMatches.length > 0) || (popMatches && popMatches.length > 0)) {
+        setStatus({ message: '¡Campos detectados! Revisa y confirma.', type: 'info' });
       } else {
-        setStatus('No se detectaron números claros. Ingrésalos manualmente.');
+        setStatus({ message: 'No se detectaron números claros. Ingrésalos manualmente.', type: 'warning' });
       }
     } catch (err) {
       console.error(err);
-      setStatus('Error al procesar la imagen.');
+      setStatus({ message: 'Error al procesar la imagen.', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Guardar datos
-  const handleSave = () => {
-    if (!chassiNumber && !popIdNumber) return;
-    setSavedSuccess(true);
-    setStatus(`✅ ¡Registro guardado! Chassi: ${chassiNumber || 'N/A'} | Pop ID: ${popIdNumber || 'N/A'}`);
-    
-    setTimeout(() => {
-      setImage(null);
-      setChassiNumber('');
-      setPopIdNumber('');
-      setSavedSuccess(false);
-      setStatus('');
-    }, 3500);
+  // Enviar registro directamente a la Lista de SharePoint
+  const handleSave = async () => {
+    if (!chassisNumber && !popIdNumber) return;
+
+    setSaving(true);
+    setStatus({ message: 'Enviando datos a la Lista de SharePoint...', type: 'info' });
+
+    const now = new Date();
+    const fecha = now.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    const hora = now.toLocaleTimeString('es-CL');  // Formato HH:MM:SS
+
+    // Objeto mapeado a los campos de SharePoint
+    const payload = {
+      Title: chassisNumber || '', // Columna 'Title' del sistema renombrada visualmente a Chassis
+      PopID: popIdNumber || '',
+      Ubicacion: location,
+      Usuario: userEmail,
+      Fecha: fecha,
+      Hora: hora
+    };
+
+    try {
+      // 1. Obtener el Request Digest token de SharePoint para autorizar el POST
+      const digestResponse = await fetch(`${SHAREPOINT_SITE_URL}/_api/contextinfo`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;odata=verbose'
+        }
+      });
+      
+      const digestData = await digestResponse.json();
+      const requestDigest = digestData.d.GetContextWebInformation.FormDigestValue;
+
+      // 2. Insertar el ítem en la Lista
+      const response = await fetch(`${SHAREPOINT_SITE_URL}/_api/web/lists/getbytitle('${LIST_NAME}')/items`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;odata=verbose',
+          'Content-Type': 'application/json;odata=verbose',
+          'X-RequestDigest': requestDigest
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        setStatus({ message: '✅ Registro guardado exitosamente en la Lista de SharePoint!', type: 'success' });
+        
+        // Limpiar formulario dejando fija la ubicación y el usuario
+        setTimeout(() => {
+          setImage(null);
+          setChassisNumber('');
+          setPopIdNumber('');
+          setStatus({ message: '', type: '' });
+        }, 3000);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error SharePoint:", errorData);
+        setStatus({ message: '⚠️ Error al guardar en la lista de SharePoint.', type: 'error' });
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+      setStatus({ message: '⚠️ Error de red/autenticación al guardar.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (status.type) {
+      case 'success': return '#28a745';
+      case 'warning': return '#d97706';
+      case 'error': return '#dc3545';
+      default: return '#1a1a1a';
+    }
   };
 
   return (
     <div style={{ maxWidth: '400px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
       <h2 style={{ textAlign: 'center', color: '#1a1a1a', marginBottom: '4px' }}>Inventario Chasis</h2>
       <p style={{ textAlign: 'center', color: '#666', fontSize: '13px', marginTop: 0 }}>
-        Captura automática de Chassi (7 dígitos) y Pop ID (6 dígitos)
+        Captura automática e integración con SharePoint
       </p>
+
+      {/* Selector de Ubicación Fija */}
+      <div style={{ marginBottom: '12px', backgroundColor: '#f0f4f8', padding: '10px', borderRadius: '8px', border: '1px solid #d0dbe5' }}>
+        <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+          📍 Ubicación actual:
+        </label>
+        <select
+          value={location}
+          onChange={handleLocationChange}
+          style={{
+            width: '100%',
+            padding: '8px',
+            fontSize: '15px',
+            fontWeight: 'bold',
+            borderRadius: '6px',
+            border: '1px solid #0066cc',
+            backgroundColor: 'white',
+            color: '#1a1a1a'
+          }}
+        >
+          <option value="Santiago Norte">Santiago Norte</option>
+          <option value="Santiago Sur">Santiago Sur</option>
+        </select>
+      </div>
+
+      {/* Operador / Usuario */}
+      <div style={{ marginBottom: '15px', backgroundColor: '#f0f4f8', padding: '10px', borderRadius: '8px', border: '1px solid #d0dbe5' }}>
+        <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+          👤 Usuario / Operador:
+        </label>
+        <input
+          type="text"
+          value={userEmail}
+          onChange={handleUserChange}
+          placeholder="Nombre o Correo"
+          style={{
+            width: '100%',
+            padding: '8px',
+            fontSize: '14px',
+            borderRadius: '6px',
+            border: '1px solid #ccc',
+            boxSizing: 'border-box'
+          }}
+        />
+      </div>
 
       <input
         type="file"
@@ -93,7 +221,7 @@ export default function App() {
 
       <button
         onClick={() => fileInputRef.current.click()}
-        disabled={loading}
+        disabled={loading || saving}
         style={{
           width: '100%',
           padding: '16px',
@@ -120,21 +248,21 @@ export default function App() {
         </div>
       )}
 
-      {status && (
-        <p style={{ textAlign: 'center', fontWeight: 'bold', color: savedSuccess ? 'green' : '#333', fontSize: '14px' }}>
-          {status}
+      {status.message && (
+        <p style={{ textAlign: 'center', fontWeight: 'bold', color: getStatusColor(), fontSize: '14px', padding: '0 5px' }}>
+          {status.message}
         </p>
       )}
 
-      {/* Campo Chassi (Prioridad 1 - 7 dígitos) */}
+      {/* Campo Chassis */}
       <div style={{ marginTop: '15px' }}>
         <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', color: '#0066cc' }}>
-          Número de Chassi (7 dígitos):
+          Número de Chassis (7 dígitos):
         </label>
         <input
           type="text"
-          value={chassiNumber}
-          onChange={(e) => setChassiNumber(e.target.value)}
+          value={chassisNumber}
+          onChange={(e) => setChassisNumber(e.target.value)}
           placeholder="Ej: 4106630"
           style={{
             width: '100%',
@@ -149,7 +277,7 @@ export default function App() {
         />
       </div>
 
-      {/* Campo Pop ID (Opcional - 6 dígitos) */}
+      {/* Campo Pop ID */}
       <div style={{ marginTop: '15px' }}>
         <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', color: '#555' }}>
           Pop ID (6 dígitos):
@@ -174,21 +302,21 @@ export default function App() {
 
       <button
         onClick={handleSave}
-        disabled={(!chassiNumber && !popIdNumber) || loading}
+        disabled={(!chassisNumber && !popIdNumber) || loading || saving}
         style={{
           width: '100%',
           padding: '16px',
           fontSize: '16px',
-          backgroundColor: (chassiNumber || popIdNumber) ? '#28a745' : '#cccccc',
+          backgroundColor: (chassisNumber || popIdNumber) && !saving ? '#28a745' : '#cccccc',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
           fontWeight: 'bold',
-          cursor: (chassiNumber || popIdNumber) ? 'pointer' : 'not-allowed',
+          cursor: (chassisNumber || popIdNumber) && !saving ? 'pointer' : 'not-allowed',
           marginTop: '20px'
         }}
       >
-        💾 Confirmar y Guardar
+        {saving ? '⏳ Guardando...' : '💾 Confirmar y Guardar'}
       </button>
     </div>
   );
