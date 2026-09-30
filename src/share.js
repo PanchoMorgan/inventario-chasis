@@ -1,88 +1,94 @@
-import { buildCsvFile, downloadFile } from "./export";
-
 export async function shareRecords(records) {
+
   if (!records.length) {
+
     return {
       ok: false,
-      method: "none",
-      message: "No hay registros para compartir.",
+      message:
+        "No hay registros para compartir.",
     };
   }
 
-  const file = buildCsvFile(records);
 
-  // Primero intenta compartir como archivo usando el menu nativo.
-  if (
-    typeof navigator.share === "function" &&
-    typeof navigator.canShare === "function"
-  ) {
-    try {
-      const data = {
-        files: [file],
-        title: "Registro de camiones Scania",
-        text: `${records.length} camiones registrados.`,
-      };
+  const texto = records
+    .map((record) => {
 
-      if (navigator.canShare(data)) {
-        await navigator.share(data);
+      const fecha =
+        new Date(record.fecha)
+          .toLocaleString("es-CL");
 
-        return {
-          ok: true,
-          method: "native-file-share",
-          message: "Se abrio el menu de compartir.",
-        };
-      }
-    } catch (error) {
-      // Si el usuario cancelo el menu, no hacemos descarga automatica.
-      if (error?.name === "AbortError") {
-        return {
-          ok: false,
-          method: "cancelled",
-          message: "Compartir cancelado.",
-        };
-      }
-    }
-  }
+      return (
+        `${record.chassis || ""}\t` +
+        `${record.popid || ""}\t` +
+        `${fecha}`
+      );
 
-  // Segundo intento: compartir texto plano.
+    })
+    .join("\n");
+
+
+  const contenido =
+    `Registro de camiones Scania\n\n` +
+    `Total: ${records.length}\n\n` +
+    `Chassis\tPopID\tFecha/Hora\n` +
+    texto;
+
+
+  // -----------------------------
+  // Intentar menú nativo
+  // -----------------------------
+
   if (typeof navigator.share === "function") {
+
     try {
-      const text = records
-        .map(
-          (r) =>
-            `${r.chassis || ""}\t${r.popid || ""}\t${new Date(
-              r.fecha
-            ).toLocaleString("es-CL")}`
-        )
-        .join("\n");
 
       await navigator.share({
-        title: "Registro de camiones Scania",
-        text,
+        title:
+          "Registro de camiones Scania",
+
+        text:
+          contenido,
       });
+
 
       return {
         ok: true,
-        method: "native-text-share",
-        message: "Se abrio el menu de compartir.",
+        message:
+          "Menú de compartir abierto.",
       };
+
     } catch (error) {
+
       if (error?.name === "AbortError") {
+
         return {
           ok: false,
-          method: "cancelled",
-          message: "Compartir cancelado.",
+          message:
+            "Compartir cancelado.",
         };
       }
+
+      console.error(
+        "Error al compartir:",
+        error
+      );
+
+      return {
+        ok: false,
+        message:
+          "No fue posible abrir el menú de compartir.",
+      };
     }
   }
 
-  // Fallback final.
-  downloadFile(file);
+
+  // -----------------------------
+  // No compatible
+  // -----------------------------
 
   return {
-    ok: true,
-    method: "download",
-    message: "Este navegador no permite compartir archivos; se descargo el CSV.",
+    ok: false,
+    message:
+      "Este navegador no permite compartir directamente.",
   };
 }

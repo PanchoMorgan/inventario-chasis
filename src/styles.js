@@ -1,4 +1,5 @@
 export const styles = {
+
   page: {
     maxWidth: "400px",
     margin: "0 auto",
@@ -6,11 +7,13 @@ export const styles = {
     fontFamily: "sans-serif",
   },
 
+
   title: {
     textAlign: "center",
     color: "#1a1a1a",
     marginBottom: "4px",
   },
+
 
   subtitle: {
     textAlign: "center",
@@ -18,6 +21,7 @@ export const styles = {
     fontSize: "13px",
     marginTop: 0,
   },
+
 
   counter: {
     backgroundColor: "#f1f5f9",
@@ -28,16 +32,19 @@ export const styles = {
     border: "1px solid #ddd",
   },
 
+
   counterLabel: {
     fontSize: "13px",
     color: "#666",
   },
+
 
   counterValue: {
     fontSize: "30px",
     fontWeight: "bold",
     color: "#0066cc",
   },
+
 
   primaryButton: {
     width: "100%",
@@ -53,6 +60,7 @@ export const styles = {
     marginTop: "10px",
   },
 
+
   greenButton: {
     width: "100%",
     padding: "16px",
@@ -66,18 +74,6 @@ export const styles = {
     marginTop: "20px",
   },
 
-  secondaryButton: {
-    width: "100%",
-    padding: "12px",
-    fontSize: "14px",
-    backgroundColor: "#f3f4f6",
-    color: "#333",
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "10px",
-  },
 
   darkButton: {
     width: "100%",
@@ -92,6 +88,21 @@ export const styles = {
     marginTop: "15px",
   },
 
+
+  secondaryButton: {
+    width: "100%",
+    padding: "12px",
+    fontSize: "14px",
+    backgroundColor: "#f3f4f6",
+    color: "#333",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    marginTop: "10px",
+  },
+
+
   dangerButton: {
     width: "100%",
     padding: "10px",
@@ -105,9 +116,11 @@ export const styles = {
     marginTop: "10px",
   },
 
+
   fieldBlock: {
     marginTop: "15px",
   },
+
 
   label: {
     display: "block",
@@ -115,6 +128,7 @@ export const styles = {
     fontWeight: "bold",
     marginBottom: "5px",
   },
+
 
   chassisInput: {
     width: "100%",
@@ -127,6 +141,7 @@ export const styles = {
     boxSizing: "border-box",
   },
 
+
   popInput: {
     width: "100%",
     padding: "10px",
@@ -138,6 +153,7 @@ export const styles = {
     boxSizing: "border-box",
   },
 
+
   preview: {
     width: "100%",
     maxHeight: "180px",
@@ -146,6 +162,7 @@ export const styles = {
     border: "1px solid #ccc",
   },
 
+
   list: {
     maxHeight: "250px",
     overflowY: "auto",
@@ -153,11 +170,13 @@ export const styles = {
     borderRadius: "8px",
   },
 
+
   listHeader: {
     marginTop: "20px",
     borderTop: "1px solid #ddd",
     paddingTop: "15px",
   },
+
 
   recordItem: {
     padding: "10px",

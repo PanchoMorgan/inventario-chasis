@@ -4,21 +4,27 @@ export async function extractNumbersFromImage(file, onProgress) {
   const imageUrl = URL.createObjectURL(file);
 
   try {
-    const result = await Tesseract.recognize(imageUrl, "eng", {
-      logger: (message) => {
-        if (
-          message.status === "recognizing text" &&
-          typeof message.progress === "number"
-        ) {
-          onProgress?.(Math.round(message.progress * 100));
-        }
-      },
-    });
+    const { data: { text } } = await Tesseract.recognize(
+      imageUrl,
+      "eng",
+      {
+        logger: (m) => {
+          if (
+            m.status === "recognizing text" &&
+            typeof m.progress === "number"
+          ) {
+            onProgress?.(Math.round(m.progress * 100));
+          }
+        },
+      }
+    );
 
-    const text = result?.data?.text || "";
     console.log("Texto OCR:", text);
 
+    // Chassis = 7 dígitos
     const chassisMatches = text.match(/\b\d{7}\b/g) || [];
+
+    // PopID = 6 dígitos
     const popMatches = text.match(/\b\d{6}\b/g) || [];
 
     return {
@@ -26,6 +32,7 @@ export async function extractNumbersFromImage(file, onProgress) {
       chassis: chassisMatches[0] || "",
       popid: popMatches[0] || "",
     };
+
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
