@@ -66,17 +66,22 @@ export default function App() {
     }
   };
 
-  // Enviar los datos de vuelta a Power Apps
+  // Enviar los datos de vuelta de forma segura
   const handleReturnToPowerApps = () => {
     if (!chassisNumber && !popIdNumber) return;
 
-    // Si Power Apps nos dio una URL de retorno, redirigimos con los parámetros
-    if (returnUrl) {
+    // Si tenemos una URL de retorno válida provista por Power Apps
+    if (returnUrl && returnUrl.startsWith('http')) {
       const finalRedirect = `${returnUrl}&chasis=${encodeURIComponent(chassisNumber)}&popid=${encodeURIComponent(popIdNumber)}`;
       window.location.href = finalRedirect;
     } else {
-      // Fallback si se abrió solo por web: muestra alerta o copia al portapapeles
-      alert(`Chassis: ${chassisNumber} | PopID: ${popIdNumber}`);
+      // Método seguro de respaldo: Copiar al portapapeles para pegar en Power Apps
+      const textoACopiar = `Chassis: ${chassisNumber} | PopID: ${popIdNumber}`;
+      navigator.clipboard.writeText(textoACopiar).then(() => {
+        setStatus({ message: '📋 ¡Códigos copiados! Pégalos en Power Apps.', type: 'success' });
+      }).catch(() => {
+        alert(`Chassis: ${chassisNumber} \nPopID: ${popIdNumber}`);
+      });
     }
   };
 
