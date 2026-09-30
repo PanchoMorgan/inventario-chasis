@@ -4,6 +4,7 @@ import Tesseract from 'tesseract.js';
 export default function App() {
   const [image, setImage] = useState(null);
   const [chassiNumber, setChassiNumber] = useState('');
+  const [popIdNumber, setPopIdNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -20,6 +21,8 @@ export default function App() {
     setSavedSuccess(false);
     setLoading(true);
     setStatus('Procesando imagen con OCR...');
+    setChassiNumber('');
+    setPopIdNumber('');
 
     try {
       // Analizar texto con Tesseract.js
@@ -31,14 +34,23 @@ export default function App() {
         },
       });
 
-      // Extraer números de 6 a 8 dígitos (ejemplo: 4106630)
-      const matches = text.match(/\b\d{6,8}\b/g);
+      // 1. Extraer números de exactamente 7 dígitos (Prioridad: Chassi)
+      const chassiMatches = text.match(/\b\d{7}\b/g);
+      // 2. Extraer números de exactamente 6 dígitos (Pop Id)
+      const popMatches = text.match(/\b\d{6}\b/g);
 
-      if (matches && matches.length > 0) {
-        setChassiNumber(matches[0]);
-        setStatus('¡Número detectado! Revisa y confirma.');
+      if (chassiMatches && chassiMatches.length > 0) {
+        setChassiNumber(chassiMatches[0]);
+      }
+
+      if (popMatches && popMatches.length > 0) {
+        setPopIdNumber(popMatches[0]);
+      }
+
+      if ((chassiMatches && chassiMatches.length > 0) || (popMatches && popMatches.length > 0)) {
+        setStatus('¡Campos detectados! Revisa y confirma.');
       } else {
-        setStatus('No se detectó el número. Ingrésalo manualmente.');
+        setStatus('No se detectaron números claros. Ingrésalos manualmente.');
       }
     } catch (err) {
       console.error(err);
@@ -48,23 +60,27 @@ export default function App() {
     }
   };
 
-  // Guardar datos (Simulación para el demo)
+  // Guardar datos
   const handleSave = () => {
-    if (!chassiNumber) return;
+    if (!chassiNumber && !popIdNumber) return;
     setSavedSuccess(true);
-    setStatus(`✅ ¡Chassi ${chassiNumber} registrado con éxito!`);
+    setStatus(`✅ ¡Registro guardado! Chassi: ${chassiNumber || 'N/A'} | Pop ID: ${popIdNumber || 'N/A'}`);
     
     setTimeout(() => {
       setImage(null);
       setChassiNumber('');
+      setPopIdNumber('');
       setSavedSuccess(false);
       setStatus('');
-    }, 3000);
+    }, 3500);
   };
 
   return (
     <div style={{ maxWidth: '400px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h2 style={{ textAlign: 'center', color: '#1a1a1a' }}>Inventario Chasis</h2>
+      <h2 style={{ textAlign: 'center', color: '#1a1a1a', marginBottom: '4px' }}>Inventario Chasis</h2>
+      <p style={{ textAlign: 'center', color: '#666', fontSize: '13px', marginTop: 0 }}>
+        Captura automática de Chassi (7 dígitos) y Pop ID (6 dígitos)
+      </p>
 
       <input
         type="file"
@@ -99,20 +115,21 @@ export default function App() {
           <img
             src={image}
             alt="Captura"
-            style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #ccc' }}
+            style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #ccc' }}
           />
         </div>
       )}
 
       {status && (
-        <p style={{ textAlign: 'center', fontWeight: 'bold', color: savedSuccess ? 'green' : '#333' }}>
+        <p style={{ textAlign: 'center', fontWeight: 'bold', color: savedSuccess ? 'green' : '#333', fontSize: '14px' }}>
           {status}
         </p>
       )}
 
+      {/* Campo Chassi (Prioridad 1 - 7 dígitos) */}
       <div style={{ marginTop: '15px' }}>
-        <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>
-          Número de Chassi:
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', color: '#0066cc' }}>
+          Número de Chassi (7 dígitos):
         </label>
         <input
           type="text"
@@ -122,11 +139,34 @@ export default function App() {
           style={{
             width: '100%',
             padding: '12px',
-            fontSize: '22px',
+            fontSize: '20px',
             textAlign: 'center',
             fontWeight: 'bold',
             borderRadius: '8px',
-            border: '2px solid #ccc',
+            border: '2px solid #0066cc',
+            boxSizing: 'border-box'
+          }}
+        />
+      </div>
+
+      {/* Campo Pop ID (Opcional - 6 dígitos) */}
+      <div style={{ marginTop: '15px' }}>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', color: '#555' }}>
+          Pop ID (6 dígitos):
+        </label>
+        <input
+          type="text"
+          value={popIdNumber}
+          onChange={(e) => setPopIdNumber(e.target.value)}
+          placeholder="Ej: 756998"
+          style={{
+            width: '100%',
+            padding: '10px',
+            fontSize: '18px',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            borderRadius: '8px',
+            border: '1.5px solid #ccc',
             boxSizing: 'border-box'
           }}
         />
@@ -134,18 +174,18 @@ export default function App() {
 
       <button
         onClick={handleSave}
-        disabled={!chassiNumber || loading}
+        disabled={(!chassiNumber && !popIdNumber) || loading}
         style={{
           width: '100%',
           padding: '16px',
           fontSize: '16px',
-          backgroundColor: chassiNumber ? '#28a745' : '#cccccc',
+          backgroundColor: (chassiNumber || popIdNumber) ? '#28a745' : '#cccccc',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
           fontWeight: 'bold',
-          cursor: chassiNumber ? 'pointer' : 'not-allowed',
-          marginTop: '15px'
+          cursor: (chassiNumber || popIdNumber) ? 'pointer' : 'not-allowed',
+          marginTop: '20px'
         }}
       >
         💾 Confirmar y Guardar
