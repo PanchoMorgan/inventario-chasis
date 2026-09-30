@@ -1,3 +1,5 @@
+import { buildCsvFile } from "./export";
+
 export async function shareRecords(records) {
   if (!records.length) {
     return {
@@ -6,41 +8,82 @@ export async function shareRecords(records) {
     };
   }
 
-  console.log("=== PRUEBA SHARE ===");
-  console.log("navigator.share:", typeof navigator.share);
-  console.log("navigator.canShare:", typeof navigator.canShare);
-  console.log("userAgent:", navigator.userAgent);
+  const file = buildCsvFile(records);
 
   // ==========================================================
-  // Intento simple de Web Share
+  // Compartir archivo mediante el sistema nativo
   // ==========================================================
 
-  if (typeof navigator.share === "function") {
+  if (
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+  ) {
     try {
-      await navigator.share({
-        title: "Registro Scania",
-        text: "Prueba de compartir desde la app Scania",
-      });
-
-      return {
-        ok: true,
-        message: "✅ Se abrió el menú de compartir de Android.",
+      const shareData = {
+        title: "Registro de camiones Scania",
+        text: `${records.length} camiones registrados.`,
+        files: [file],
       };
 
-    } catch (error) {
-      console.error("ERROR SHARE:", error);
+      console.log(
+        "navigator.share:",
+        typeof navigator.share
+      );
+
+      console.log(
+        "navigator.canShare:",
+        typeof navigator.canShare
+      );
+
+      console.log(
+        "Puede compartir archivo:",
+        navigator.canShare(shareData)
+      );
+
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+
+        return {
+          ok: true,
+          method: "file",
+          message: "CSV compartido correctamente.",
+        };
+      }
 
       return {
         ok: false,
+        method: "unsupported-file",
         message:
-          `Error del menú compartir: ${error.name || "desconocido"}`,
+          "Este navegador permite compartir, pero no archivos desde esta app.",
+      };
+
+    } catch (error) {
+      console.error(
+        "Error compartiendo archivo:",
+        error
+      );
+
+      if (error?.name === "AbortError") {
+        return {
+          ok: false,
+          method: "cancelled",
+          message: "Compartir cancelado.",
+        };
+      }
+
+      return {
+        ok: false,
+        method: "error",
+        message:
+          `Error al compartir: ${error.name || "desconocido"}`,
       };
     }
   }
 
   return {
     ok: false,
+    method: "unsupported",
     message:
-      "Chrome no expone navigator.share en esta sesión.",
+      "Este navegador no permite compartir archivos desde la aplicacion.",
   };
 }
