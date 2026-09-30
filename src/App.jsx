@@ -42,13 +42,9 @@ async function getAllRecords() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-
     const request = store.getAll();
 
-    request.onsuccess = () => {
-      resolve(request.result || []);
-    };
-
+    request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
 }
@@ -59,7 +55,6 @@ async function addRecord(record) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-
     const request = store.add(record);
 
     request.onsuccess = () => resolve(request.result);
@@ -73,7 +68,6 @@ async function deleteAllRecords() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-
     const request = store.clear();
 
     request.onsuccess = () => resolve();
@@ -82,8 +76,34 @@ async function deleteAllRecords() {
 }
 
 // ============================================================
-// App
+// Utilidades CSV / compartir
 // ============================================================
+
+function buildCSV(records) {
+  // BOM UTF-8 para que Excel reconozca correctamente caracteres especiales.
+  const BOM = '\uFEFF';
+  const header = 'Chassis,PopID,Fecha\n';
+
+  const rows = records
+    .map((record) => {
+      const fecha = new Date(record.fecha).toLocaleString('es-CL');
+      return [record.chassis || '', record.popid || '', fecha]
+        .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+        .join(',');
+    })
+    .join('\n');
+
+  return BOM + header + rows;
+}
+
+function createCSVFile(records) {
+  const csv = buildCSV(records);
+  return new File(
+    [csv],
+    `camiones_${new Date().toISOString().slice(0, 10)}.csv`,
+    { type: 'text/csv;charset=utf-8' }
+  );
+}
 
 export default function App() {
   const [image, setImage] = useState(null);
@@ -97,8 +117,8 @@ export default function App() {
   });
 
   const [returnUrl, setReturnUrl] = useState('');
-
   const [records, setRecords] = useState([]);
+  const [sharing, setSharing] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -111,26 +131,19 @@ export default function App() {
       try {
         const savedRecords = await getAllRecords();
 
-        // Ordenar desde el más antiguo al más nuevo
         savedRecords.sort(
           (a, b) => new Date(a.fecha) - new Date(b.fecha)
         );
 
         setRecords(savedRecords);
 
-        // Recuperar datos pendientes del registro actual
         const savedDraft = localStorage.getItem('scania_draft');
 
         if (savedDraft) {
           const draft = JSON.parse(savedDraft);
 
-          if (draft.chassis) {
-            setChassisNumber(draft.chassis);
-          }
-
-          if (draft.popid) {
-            setPopIdNumber(draft.popid);
-          }
+          if (draft.chassis) setChassisNumber(draft.chassis);
+          if (draft.popid) setPopIdNumber(draft.popid);
 
           if (draft.chassis || draft.popid) {
             setStatus({
@@ -146,7 +159,6 @@ export default function App() {
 
     loadSavedData();
 
-    // Capturar returnUrl
     const params = new URLSearchParams(window.location.search);
     const callback = params.get('returnUrl');
 
@@ -165,7 +177,6 @@ export default function App() {
       popid: popIdNumber,
     };
 
-    // Si no hay nada escrito, eliminamos el borrador
     if (!chassisNumber && !popIdNumber) {
       localStorage.removeItem('scania_draft');
       return;
@@ -180,20 +191,12 @@ export default function App() {
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-
     if (!file) return;
 
     const imageUrl = URL.createObjectURL(file);
-
     setImage(imageUrl);
-
-    setStatus({
-      message: 'Procesando imagen con OCR...',
-      type: 'info',
-    });
-
+    setStatus({ message: 'Procesando imagen con OCR...', type: 'info' });
     setLoading(true);
-
     setChassisNumber('');
     setPopIdNumber('');
 
@@ -204,9 +207,7 @@ export default function App() {
         logger: (m) => {
           if (m.status === 'recognizing text') {
             setStatus({
-              message: `Analizando números... ${Math.round(
-                m.progress * 100
-              )}%`,
+              message: `Analizando números... ${Math.round(m.progress * 100)}%`,
               type: 'info',
             });
           }
@@ -215,35 +216,17 @@ export default function App() {
 
       console.log('Texto OCR:', text);
 
-      // ======================================================
-      // Extraer Chassis (7 dígitos)
-      // ======================================================
-
       const chassisMatches = text.match(/\b\d{7}\b/g);
-
-      // ======================================================
-      // Extraer Pop ID (6 dígitos)
-      // ======================================================
-
       const popMatches = text.match(/\b\d{6}\b/g);
 
       const detectedChassis =
-        chassisMatches && chassisMatches.length > 0
-          ? chassisMatches[0]
-          : '';
+        chassisMatches && chassisMatches.length > 0 ? chassisMatches[0] : '';
 
       const detectedPop =
-        popMatches && popMatches.length > 0
-          ? popMatches[0]
-          : '';
+        popMatches && popMatches.length > 0 ? popMatches[0] : '';
 
-      if (detectedChassis) {
-        setChassisNumber(detectedChassis);
-      }
-
-      if (detectedPop) {
-        setPopIdNumber(detectedPop);
-      }
+      if (detectedChassis) setChassisNumber(detectedChassis);
+      if (detectedPop) setPopIdNumber(detectedPop);
 
       if (detectedChassis || detectedPop) {
         setStatus({
@@ -252,14 +235,12 @@ export default function App() {
         });
       } else {
         setStatus({
-          message:
-            'No se detectaron números claros. Ingrésalos manualmente.',
+          message: 'No se detectaron números claros. Ingrésalos manualmente.',
           type: 'warning',
         });
       }
     } catch (err) {
       console.error(err);
-
       setStatus({
         message: 'Error al procesar la imagen.',
         type: 'error',
@@ -277,16 +258,11 @@ export default function App() {
     const chassis = chassisNumber.trim();
     const popid = popIdNumber.trim();
 
-    if (!chassis && !popid) {
-      return;
-    }
+    if (!chassis && !popid) return;
 
     try {
-      // Evitar duplicados exactos
       const alreadyExists = records.some(
-        (record) =>
-          record.chassis === chassis &&
-          record.popid === popid
+        (record) => record.chassis === chassis && record.popid === popid
       );
 
       if (alreadyExists) {
@@ -294,7 +270,6 @@ export default function App() {
           message: '⚠️ Este camión ya está registrado.',
           type: 'warning',
         });
-
         return;
       }
 
@@ -307,21 +282,14 @@ export default function App() {
       await addRecord(newRecord);
 
       const updatedRecords = [...records, newRecord];
-
       setRecords(updatedRecords);
 
-      // Limpiar borrador
       localStorage.removeItem('scania_draft');
-
-      // Limpiar campos
       setChassisNumber('');
       setPopIdNumber('');
       setImage(null);
 
-      // Reiniciar selector de archivo
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
 
       setStatus({
         message: `✅ Camión guardado. Total: ${updatedRecords.length}`,
@@ -329,7 +297,6 @@ export default function App() {
       });
     } catch (error) {
       console.error('Error guardando registro:', error);
-
       setStatus({
         message: 'Error guardando el camión.',
         type: 'error',
@@ -354,86 +321,135 @@ export default function App() {
 
       window.location.href = finalRedirect;
     } else {
-      const textoACopiar =
-        `Chassis: ${chassisNumber} | PopID: ${popIdNumber}`;
+      const textoACopiar = `Chassis: ${chassisNumber} | PopID: ${popIdNumber}`;
 
       navigator.clipboard
         .writeText(textoACopiar)
         .then(() => {
           setStatus({
-            message:
-              '📋 ¡Códigos copiados! Pégalos donde quieras.',
+            message: '📋 ¡Códigos copiados! Pégalos donde quieras.',
             type: 'success',
           });
         })
         .catch(() => {
-          alert(
-            `Chassis: ${chassisNumber}\nPopID: ${popIdNumber}`
-          );
+          alert(`Chassis: ${chassisNumber}\nPopID: ${popIdNumber}`);
         });
     }
   };
 
   // ==========================================================
-  // Exportar CSV
+  // Descargar CSV
   // ==========================================================
 
-  const handleExportCSV = () => {
+  const handleDownloadCSV = () => {
     if (records.length === 0) {
       setStatus({
         message: 'No hay registros para exportar.',
         type: 'warning',
       });
-
       return;
     }
 
-    const header = 'Chassis,PopID,Fecha\n';
-
-    const rows = records
-      .map((record) => {
-        const fecha = new Date(record.fecha).toLocaleString(
-          'es-CL'
-        );
-
-        return `"${record.chassis}","${record.popid}","${fecha}"`;
-      })
-      .join('\n');
-
-    const csv = header + rows;
-
-    const blob = new Blob([csv], {
-      type: 'text/csv;charset=utf-8;',
-    });
-
-    const url = URL.createObjectURL(blob);
-
+    const file = createCSVFile(records);
+    const url = URL.createObjectURL(file);
     const link = document.createElement('a');
 
     link.href = url;
-
-    const fechaArchivo = new Date()
-      .toISOString()
-      .slice(0, 10);
-
-    link.download = `camiones_${fechaArchivo}.csv`;
-
+    link.download = file.name;
     document.body.appendChild(link);
-
     link.click();
-
     document.body.removeChild(link);
 
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     setStatus({
-      message: `📄 CSV generado con ${records.length} camiones.`,
+      message: `📄 CSV descargado con ${records.length} camiones.`,
       type: 'success',
     });
   };
 
   // ==========================================================
-  // Borrar todos los registros
+  // Compartir CSV
+  // ==========================================================
+
+  const handleShareCSV = async () => {
+    if (records.length === 0) {
+      setStatus({
+        message: 'No hay registros para compartir.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    setSharing(true);
+
+    try {
+      const file = createCSVFile(records);
+
+      // Web Share API con archivo: Android/iOS compatibles mostrarán
+      // el menú nativo de compartir.
+      if (
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          title: 'Registro de camiones',
+          text: `${records.length} camiones registrados`,
+          files: [file],
+        });
+
+        setStatus({
+          message: '📤 Registros enviados al menú de compartir.',
+          type: 'success',
+        });
+      } else {
+        // Respaldo universal: descarga del archivo.
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        setStatus({
+          message:
+            'Este navegador no permite compartir archivos directamente. Se descargó el CSV como respaldo.',
+          type: 'warning',
+        });
+      }
+    } catch (error) {
+      // El usuario puede cancelar el menú de compartir. No lo tratamos como
+      // un error grave. Para cualquier otro error, descargamos como respaldo.
+      if (error && error.name === 'AbortError') {
+        setStatus({
+          message: 'Compartir cancelado.',
+          type: 'info',
+        });
+      } else {
+        console.error('Error compartiendo CSV:', error);
+
+        try {
+          handleDownloadCSV();
+        } catch (fallbackError) {
+          console.error('Error en descarga de respaldo:', fallbackError);
+          setStatus({
+            message: 'No fue posible compartir ni descargar el CSV.',
+            type: 'error',
+          });
+        }
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  // ==========================================================
+  // Borrar registros
   // ==========================================================
 
   const handleClearRecords = async () => {
@@ -445,9 +461,7 @@ export default function App() {
 
     try {
       await deleteAllRecords();
-
       setRecords([]);
-
       localStorage.removeItem('scania_draft');
 
       setStatus({
@@ -456,7 +470,6 @@ export default function App() {
       });
     } catch (error) {
       console.error(error);
-
       setStatus({
         message: 'Error al borrar los registros.',
         type: 'error',
@@ -472,24 +485,16 @@ export default function App() {
     switch (status.type) {
       case 'success':
         return '#28a745';
-
       case 'warning':
         return '#d97706';
-
       case 'error':
         return '#dc3545';
-
       case 'info':
         return '#0066cc';
-
       default:
         return '#1a1a1a';
     }
   };
-
-  // ==========================================================
-  // Render
-  // ==========================================================
 
   return (
     <div
@@ -521,10 +526,7 @@ export default function App() {
         Registro de camiones
       </p>
 
-      {/* =====================================================
-          CONTADOR
-      ====================================================== */}
-
+      {/* CONTADOR */}
       <div
         style={{
           backgroundColor: '#f1f5f9',
@@ -535,12 +537,7 @@ export default function App() {
           border: '1px solid #ddd',
         }}
       >
-        <div
-          style={{
-            fontSize: '13px',
-            color: '#666',
-          }}
-        >
+        <div style={{ fontSize: '13px', color: '#666' }}>
           CAMIONES GUARDADOS
         </div>
 
@@ -555,10 +552,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* =====================================================
-          FOTO
-      ====================================================== */}
-
+      {/* FOTO */}
       <input
         type="file"
         accept="image/*"
@@ -589,12 +583,7 @@ export default function App() {
       </button>
 
       {image && (
-        <div
-          style={{
-            textAlign: 'center',
-            marginBottom: '15px',
-          }}
-        >
+        <div style={{ textAlign: 'center', marginBottom: '15px' }}>
           <img
             src={image}
             alt="Captura"
@@ -609,10 +598,7 @@ export default function App() {
         </div>
       )}
 
-      {/* =====================================================
-          ESTADO
-      ====================================================== */}
-
+      {/* ESTADO */}
       {status.message && (
         <p
           style={{
@@ -627,10 +613,7 @@ export default function App() {
         </p>
       )}
 
-      {/* =====================================================
-          CHASSIS
-      ====================================================== */}
-
+      {/* CHASSIS */}
       <div style={{ marginTop: '15px' }}>
         <label
           style={{
@@ -667,10 +650,7 @@ export default function App() {
         />
       </div>
 
-      {/* =====================================================
-          POP ID
-      ====================================================== */}
-
+      {/* POP ID */}
       <div style={{ marginTop: '15px' }}>
         <label
           style={{
@@ -707,15 +687,10 @@ export default function App() {
         />
       </div>
 
-      {/* =====================================================
-          GUARDAR
-      ====================================================== */}
-
+      {/* GUARDAR */}
       <button
         onClick={handleSaveRecord}
-        disabled={
-          (!chassisNumber && !popIdNumber) || loading
-        }
+        disabled={(!chassisNumber && !popIdNumber) || loading}
         style={{
           width: '100%',
           padding: '16px',
@@ -738,15 +713,10 @@ export default function App() {
         ✅ GUARDAR CAMIÓN
       </button>
 
-      {/* =====================================================
-          POWER APPS
-      ====================================================== */}
-
+      {/* POWER APPS */}
       <button
         onClick={handleReturnToPowerApps}
-        disabled={
-          (!chassisNumber && !popIdNumber) || loading
-        }
+        disabled={(!chassisNumber && !popIdNumber) || loading}
         style={{
           width: '100%',
           padding: '12px',
@@ -763,35 +733,51 @@ export default function App() {
         ↗️ Enviar actual a Power Apps
       </button>
 
-      {/* =====================================================
-          EXPORTAR
-      ====================================================== */}
-
+      {/* COMPARTIR / DESCARGAR */}
       <button
-        onClick={handleExportCSV}
-        disabled={records.length === 0}
+        onClick={handleShareCSV}
+        disabled={records.length === 0 || sharing}
         style={{
           width: '100%',
-          padding: '14px',
-          fontSize: '15px',
+          padding: '16px',
+          fontSize: '16px',
           backgroundColor:
-            records.length > 0 ? '#555' : '#cccccc',
+            records.length > 0 && !sharing ? '#555' : '#cccccc',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
           fontWeight: 'bold',
           cursor:
-            records.length > 0 ? 'pointer' : 'not-allowed',
+            records.length > 0 && !sharing
+              ? 'pointer'
+              : 'not-allowed',
           marginTop: '15px',
         }}
       >
-        📄 EXPORTAR CSV ({records.length})
+        {sharing ? '⏳ Preparando...' : '📤 COMPARTIR REGISTROS'}
       </button>
 
-      {/* =====================================================
-          LISTA
-      ====================================================== */}
+      {/* DESCARGA DIRECTA COMO RESPALDO */}
+      <button
+        onClick={handleDownloadCSV}
+        disabled={records.length === 0}
+        style={{
+          width: '100%',
+          padding: '11px',
+          fontSize: '13px',
+          backgroundColor: 'white',
+          color: '#555',
+          border: '1px solid #bbb',
+          borderRadius: '8px',
+          fontWeight: 'bold',
+          cursor: records.length > 0 ? 'pointer' : 'not-allowed',
+          marginTop: '8px',
+        }}
+      >
+        📥 Descargar CSV (respaldo)
+      </button>
 
+      {/* LISTA */}
       {records.length > 0 && (
         <div
           style={{
@@ -800,12 +786,7 @@ export default function App() {
             paddingTop: '15px',
           }}
         >
-          <h3
-            style={{
-              fontSize: '16px',
-              marginBottom: '10px',
-            }}
-          >
+          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>
             Registros de esta sesión
           </h3>
 
@@ -850,17 +831,11 @@ export default function App() {
                     marginTop: '2px',
                   }}
                 >
-                  {new Date(record.fecha).toLocaleString(
-                    'es-CL'
-                  )}
+                  {new Date(record.fecha).toLocaleString('es-CL')}
                 </div>
               </div>
             ))}
           </div>
-
-          {/* =================================================
-              BORRAR
-          ================================================== */}
 
           <button
             onClick={handleClearRecords}
