@@ -1,3 +1,5 @@
+import { buildCsvFile } from "./export";
+
 export async function shareRecords(records) {
 
   if (!records.length) {
@@ -8,93 +10,160 @@ export async function shareRecords(records) {
   }
 
   // ==========================================================
-  // Construir texto con todos los registros
+  // Crear CSV
   // ==========================================================
 
-  const encabezado =
-    "REGISTRO DE CAMIONES SCANIA\n\n" +
-    `Total de camiones: ${records.length}\n\n` +
-    "Chassis\tPopID\tFecha/Hora\n";
+  const file = buildCsvFile(records);
 
-  const filas = records
-    .map((record) => {
+  console.log("=== PRUEBA DE COMPARTIR CSV ===");
+  console.log("Archivo:", file.name);
+  console.log("Tipo:", file.type);
+  console.log("Tamaño:", file.size);
 
-      const fecha = new Date(
-        record.fecha
-      ).toLocaleString("es-CL");
+  console.log(
+    "navigator.share:",
+    typeof navigator.share
+  );
 
-      return (
-        `${record.chassis || ""}\t` +
-        `${record.popid || ""}\t` +
-        `${fecha}`
-      );
-
-    })
-    .join("\n");
-
-  const contenido =
-    encabezado + filas;
+  console.log(
+    "navigator.canShare:",
+    typeof navigator.canShare
+  );
 
 
   // ==========================================================
-  // Compartir mediante el menú nativo
+  // Verificar soporte de compartir archivos
   // ==========================================================
 
   if (
     typeof navigator.share !== "function"
   ) {
-
     return {
       ok: false,
       message:
-        "Este navegador no permite compartir.",
+        "Este navegador no soporta compartir.",
     };
   }
+
+
+  if (
+    typeof navigator.canShare !== "function"
+  ) {
+    return {
+      ok: false,
+      message:
+        "Este navegador no permite comprobar archivos compartibles.",
+    };
+  }
+
+
+  const shareData = {
+    title:
+      "Registro de camiones Scania",
+
+    text:
+      `${records.length} camiones registrados.`,
+
+    files: [
+      file
+    ],
+  };
+
+
+  // ==========================================================
+  // Comprobar si el archivo puede compartirse
+  // ==========================================================
+
+  let puedeCompartirArchivo = false;
 
 
   try {
 
-    await navigator.share({
-
-      title:
-        "Registro de camiones Scania",
-
-      text:
-        contenido,
-    });
-
-
-    return {
-      ok: true,
-      method: "text",
-      message:
-        `✅ ${records.length} registros enviados al menú de compartir.`,
-    };
+    puedeCompartirArchivo =
+      navigator.canShare(
+        shareData
+      );
 
   } catch (error) {
 
     console.error(
-      "Error al compartir:",
+      "Error en canShare:",
       error
     );
-
-
-    if (
-      error?.name === "AbortError"
-    ) {
-
-      return {
-        ok: false,
-        message:
-          "Compartir cancelado.",
-      };
-    }
-
 
     return {
       ok: false,
       message:
-        `Error al compartir: ${error.name || "desconocido"}`,
+        "El navegador no pudo comprobar si puede compartir el CSV.",
     };
   }
+
+
+  console.log(
+    "Puede compartir CSV:",
+    puedeCompartirArchivo
+  );
+
+
+  // ==========================================================
+  // COMPARTIR CSV
+  // ==========================================================
+
+  if (puedeCompartirArchivo) {
+
+    try {
+
+      await navigator.share(
+        shareData
+      );
+
+
+      return {
+        ok: true,
+        method: "csv",
+        message:
+          "✅ CSV enviado al menú de compartir.",
+      };
+
+    } catch (error) {
+
+      console.error(
+        "Error compartiendo CSV:",
+        error
+      );
+
+
+      if (
+        error?.name === "AbortError"
+      ) {
+
+        return {
+          ok: false,
+          method: "cancelled",
+          message:
+            "Compartir cancelado.",
+        };
+      }
+
+
+      return {
+        ok: false,
+        method: "share-error",
+        message:
+          `Error al compartir CSV: ${error.name || "desconocido"}`,
+      };
+    }
+  }
+
+
+  // ==========================================================
+  // EL NAVEGADOR NO ACEPTA ARCHIVOS
+  // ==========================================================
+
+  return {
+    ok: false,
+    method: "unsupported-file",
+    message:
+      "El navegador permite compartir texto, pero no permite compartir archivos CSV desde esta aplicación.",
+  };
 }
