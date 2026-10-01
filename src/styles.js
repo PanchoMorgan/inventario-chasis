@@ -1,185 +1,305 @@
-export const styles = {
+const colors = {
+  navy: "#041E42",
+  primary: "#0066CC",
+  background: "#F5F7FA",
+  white: "#FFFFFF",
+  text: "#172B4D",
+  muted: "#667085",
+  border: "#D9E0E8",
+  secondary: "#3F4A54",
+  danger: "#C62828",
+};
 
+export const styles = {
   page: {
-    maxWidth: "400px",
+    maxWidth: "420px",
+    minHeight: "100vh",
     margin: "0 auto",
-    padding: "20px",
-    fontFamily: "sans-serif",
+    padding: "24px 16px 40px",
+    boxSizing: "border-box",
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+    backgroundColor: colors.background,
+    color: colors.text,
   },
 
+  header: {
+    marginBottom: "24px",
+    textAlign: "center",
+  },
+
+  date: {
+    marginTop: "5px",
+    fontSize: "14px",
+    fontWeight: 500,
+    color: colors.muted,
+  },
 
   title: {
+    margin: 0,
     textAlign: "center",
-    color: "#1a1a1a",
-    marginBottom: "4px",
+    fontSize: "24px",
+    lineHeight: 1.25,
+    fontWeight: 700,
+    color: colors.navy,
   },
 
+  // SECCIONES
 
-  subtitle: {
-    textAlign: "center",
-    color: "#666",
-    fontSize: "13px",
-    marginTop: 0,
+  section: {
+    marginTop: "26px",
   },
 
-
-  counter: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: "10px",
-    padding: "12px",
-    textAlign: "center",
-    marginBottom: "15px",
-    border: "1px solid #ddd",
+  sectionTitle: {
+    margin: 0,
+    fontSize: "17px",
+    fontWeight: 700,
+    color: colors.navy,
   },
 
-
-  counterLabel: {
-    fontSize: "13px",
-    color: "#666",
+  sectionDivider: {
+    height: "1px",
+    marginTop: "8px",
+    marginBottom: "14px",
+    backgroundColor: colors.border,
   },
 
+  // RESUMEN SUPERIOR
 
-  counterValue: {
-    fontSize: "30px",
-    fontWeight: "bold",
-    color: "#0066cc",
+  summary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 14px",
+    marginBottom: "2px",
+    backgroundColor: colors.white,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "12px",
   },
 
+  summaryLabel: {
+    fontSize: "14px",
+    fontWeight: 600,
+    color: colors.navy,
+  },
+
+  summaryValue: {
+    marginLeft: "6px",
+    fontSize: "16px",
+    fontWeight: 700,
+    color: colors.navy,
+  },
+
+  // NUEVO INVENTARIO
+
+  newInventoryButton: {
+    flexShrink: 0,
+    padding: "9px 12px",
+    border: `1px solid ${colors.primary}`,
+    borderRadius: "8px",
+    backgroundColor: colors.white,
+    color: colors.primary,
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  // BOTONES PRINCIPALES
 
   primaryButton: {
     width: "100%",
-    padding: "16px",
+    minHeight: "50px",
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: "10px",
+    backgroundColor: colors.primary,
+    color: colors.white,
     fontSize: "16px",
-    backgroundColor: "#0066cc",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: "bold",
+    fontWeight: 700,
     cursor: "pointer",
-    marginBottom: "15px",
-    marginTop: "10px",
+    boxShadow: "0 2px 6px rgba(0,102,204,0.18)",
   },
 
-
-  greenButton: {
+  secondaryPrimaryButton: {
     width: "100%",
-    padding: "16px",
+    minHeight: "50px",
+    padding: "12px 16px",
+    marginTop: "14px",
+    border: "none",
+    borderRadius: "10px",
+    backgroundColor: colors.primary,
+    color: colors.white,
     fontSize: "16px",
-    backgroundColor: "#28a745",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: "bold",
+    fontWeight: 700,
     cursor: "pointer",
-    marginTop: "20px",
+    boxShadow: "0 2px 6px rgba(0,102,204,0.18)",
   },
 
+  // TARJETA DE DATOS
 
-  darkButton: {
-    width: "100%",
-    padding: "14px",
-    fontSize: "15px",
-    backgroundColor: "#555",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "15px",
+  infoCard: {
+    marginTop: "14px",
+    padding: "16px",
+    backgroundColor: colors.white,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "12px",
+    boxSizing: "border-box",
   },
-
-
-  secondaryButton: {
-    width: "100%",
-    padding: "12px",
-    fontSize: "14px",
-    backgroundColor: "#f3f4f6",
-    color: "#333",
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "10px",
-  },
-
-
-  dangerButton: {
-    width: "100%",
-    padding: "10px",
-    fontSize: "13px",
-    backgroundColor: "white",
-    color: "#dc3545",
-    border: "1px solid #dc3545",
-    borderRadius: "8px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "10px",
-  },
-
 
   fieldBlock: {
-    marginTop: "15px",
+    marginTop: 0,
   },
 
+  fieldBlockSpaced: {
+    marginTop: "14px",
+  },
 
   label: {
     display: "block",
+    marginBottom: "7px",
     fontSize: "14px",
-    fontWeight: "bold",
-    marginBottom: "5px",
+    lineHeight: 1.4,
+    fontWeight: 600,
+    color: colors.navy,
   },
-
 
   chassisInput: {
     width: "100%",
-    padding: "12px",
-    fontSize: "20px",
-    textAlign: "center",
-    fontWeight: "bold",
-    borderRadius: "8px",
-    border: "2px solid #0066cc",
+    height: "52px",
+    padding: "10px 14px",
     boxSizing: "border-box",
+    border: `1px solid ${colors.border}`,
+    borderRadius: "10px",
+    outline: "none",
+    backgroundColor: colors.white,
+    color: colors.navy,
+    textAlign: "center",
+    fontSize: "20px",
+    fontWeight: 600,
+    letterSpacing: "0.5px",
   },
-
 
   popInput: {
     width: "100%",
-    padding: "10px",
-    fontSize: "18px",
-    textAlign: "center",
-    fontWeight: "bold",
-    borderRadius: "8px",
-    border: "1.5px solid #ccc",
+    height: "52px",
+    padding: "10px 14px",
     boxSizing: "border-box",
+    border: `1px solid ${colors.border}`,
+    borderRadius: "10px",
+    outline: "none",
+    backgroundColor: colors.white,
+    color: colors.navy,
+    textAlign: "center",
+    fontSize: "20px",
+    fontWeight: 600,
+    letterSpacing: "0.5px",
   },
 
+  // FOTO
 
   preview: {
+    display: "block",
     width: "100%",
-    maxHeight: "180px",
+    maxHeight: "190px",
+    marginTop: "14px",
+    marginBottom: "2px",
     objectFit: "contain",
-    borderRadius: "8px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.border}`,
+    borderRadius: "10px",
+    backgroundColor: colors.white,
   },
 
+  // ACCIONES INVENTARIO
 
-  list: {
-    maxHeight: "250px",
-    overflowY: "auto",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
+  actionRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+    marginTop: "14px",
   },
 
+  secondaryButton: {
+    width: "100%",
+    minHeight: "46px",
+    padding: "10px 12px",
+    border: "none",
+    borderRadius: "10px",
+    backgroundColor: colors.secondary,
+    color: colors.white,
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
+
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+
+  // TABLA
 
   listHeader: {
     marginTop: "20px",
-    borderTop: "1px solid #ddd",
-    paddingTop: "15px",
   },
 
+  listTitle: {
+    margin: "0 0 10px",
+    fontSize: "17px",
+    fontWeight: 700,
+    color: colors.navy,
+  },
+
+  list: {
+    overflow: "hidden",
+    border: `1px solid ${colors.border}`,
+    borderRadius: "12px",
+    backgroundColor: colors.white,
+  },
+
+  listHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    padding: "10px 14px",
+    backgroundColor: "#EEF2F6",
+    borderBottom: `1px solid ${colors.border}`,
+    fontSize: "12px",
+    fontWeight: 700,
+    color: colors.navy,
+  },
 
   recordItem: {
-    padding: "10px",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    alignItems: "center",
+    padding: "11px 14px",
     fontSize: "14px",
+    lineHeight: 1.4,
+    color: colors.text,
+  },
+
+  recordChassis: {
+    fontWeight: 600,
+    color: colors.navy,
+  },
+
+  recordPop: {
+    color: colors.text,
+  },
+
+  // ELIMINAR
+
+  dangerButton: {
+    width: "100%",
+    minHeight: "46px",
+    padding: "10px 14px",
+    marginTop: "12px",
+    border: "none",
+    borderRadius: "10px",
+    backgroundColor: colors.danger,
+    color: colors.white,
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
   },
 };

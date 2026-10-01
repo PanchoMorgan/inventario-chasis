@@ -6,6 +6,11 @@ import { shareRecords } from "./share";
 import { styles } from "./styles";
 
 const isAndroid = /Android/i.test(navigator.userAgent);
+const fechaActual = new Date().toLocaleDateString("es-CL", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 export default function App() {
   const [image, setImage] = useState(null);
@@ -13,25 +18,57 @@ export default function App() {
   const [popIdNumber, setPopIdNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
-  const [status, setStatus] = useState({ message: "", type: "" });
+  const [showNewInventory, setShowNewInventory] = useState(false);
+
+  const [scanStatus, setScanStatus] = useState({
+    message: "",
+    type: "",
+  });
+
+  const [inventoryStatus, setInventoryStatus] = useState({
+    message: "",
+    type: "",
+  });
+
   const fileInputRef = useRef(null);
 
-  const statusColor = {
-    success: "#28a745",
-    warning: "#d97706",
-    error: "#dc3545",
-    info: "#0066cc",
-  }[status.type] || "#1a1a1a";
+  const scanStatusColor =
+    {
+      success: "#18864B",
+      warning: "#D97706",
+      error: "#C62828",
+      info: "#0066CC",
+    }[scanStatus.type] || "#172B4D";
+
+  const inventoryStatusColor =
+    {
+      success: "#18864B",
+      warning: "#D97706",
+      error: "#C62828",
+      info: "#0066CC",
+    }[inventoryStatus.type] || "#172B4D";
+
+  // ==========================================================
+  // CARGAR REGISTROS
+  // ==========================================================
 
   useEffect(() => {
     getAllRecords()
-      .then(saved => {
-        saved.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+      .then((saved) => {
+        saved.sort(
+          (a, b) => new Date(a.fecha) - new Date(b.fecha)
+        );
+
         setRecords(saved);
+
+        if (saved.length > 0) {
+          setShowNewInventory(true);
+        }
       })
-      .catch(error => {
+      .catch((error) => {
         console.error(error);
-        setStatus({
+
+        setScanStatus({
           message: "Error recuperando registros.",
           type: "error",
         });
@@ -42,12 +79,21 @@ export default function App() {
         localStorage.getItem("scania_draft") || "null"
       );
 
-      if (draft?.chassis) setChassisNumber(draft.chassis);
-      if (draft?.popid) setPopIdNumber(draft.popid);
+      if (draft?.chassis) {
+        setChassisNumber(draft.chassis);
+      }
+
+      if (draft?.popid) {
+        setPopIdNumber(draft.popid);
+      }
     } catch (error) {
       console.error(error);
     }
   }, []);
+
+  // ==========================================================
+  // GUARDAR BORRADOR
+  // ==========================================================
 
   useEffect(() => {
     if (!chassisNumber && !popIdNumber) {
@@ -64,67 +110,138 @@ export default function App() {
     );
   }, [chassisNumber, popIdNumber]);
 
+  // ==========================================================
+  // NUEVO INVENTARIO
+  // ==========================================================
+
+  const handleNewInventory = async () => {
+    const confirmed = window.confirm(
+      `Se eliminarán los ${records.length} registros del inventario actual. ¿Deseas iniciar un nuevo inventario?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await clearRecords();
+
+      setRecords([]);
+      setChassisNumber("");
+      setPopIdNumber("");
+      setImage(null);
+      setShowNewInventory(false);
+
+      localStorage.removeItem("scania_draft");
+
+      setScanStatus({
+        message: "Nuevo inventario iniciado.",
+        type: "success",
+      });
+
+      setInventoryStatus({
+        message: "",
+        type: "",
+      });
+    } catch (error) {
+      console.error(error);
+
+      setScanStatus({
+        message: "No fue posible iniciar un nuevo inventario.",
+        type: "error",
+      });
+    }
+  };
+
+  // ==========================================================
+  // FOTO + OCR
+  // ==========================================================
+
   const handleImageUpload = async (event) => {
     const file = event.target.files?.[0];
+
     if (!file) return;
 
     setImage(URL.createObjectURL(file));
     setLoading(true);
     setChassisNumber("");
     setPopIdNumber("");
-    setStatus({
+
+    setScanStatus({
       message: "Procesando imagen...",
       type: "info",
     });
 
     try {
-      const result = await extractNumbersFromImage(file, progress => {
-        setStatus({
-          message: `Analizando... ${progress}%`,
-          type: "info",
-        });
-      });
+      const result = await extractNumbersFromImage(
+        file,
+        (progress) => {
+          setScanStatus({
+            message: `Analizando... ${progress}%`,
+            type: "info",
+          });
+        }
+      );
 
       setChassisNumber(result.chassis);
       setPopIdNumber(result.popid);
 
-      setStatus({
-        message:
-          result.chassis || result.popid
-            ? "Datos detectados."
-            : "No se detectaron numeros. Puedes ingresarlos manualmente.",
-        type:
-          result.chassis || result.popid
-            ? "success"
-            : "warning",
-      });
+      if (result.chassis || result.popid) {
+        setScanStatus({
+          message: "Datos detectados.",
+          type: "success",
+        });
+      } else {
+        setScanStatus({
+          message:
+            "No se detectaron números. Puedes ingresarlos manualmente.",
+          type: "warning",
+        });
+      }
     } catch (error) {
       console.error(error);
-      setStatus({
+
+      setScanStatus({
         message: "Error procesando imagen.",
         type: "error",
       });
     } finally {
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
+
+  // ==========================================================
+  // REGISTRAR CAMIÓN
+  // ==========================================================
 
   const handleSave = async () => {
     const chassis = chassisNumber.trim();
     const popid = popIdNumber.trim();
 
-    if (!chassis && !popid) return;
-
-    if (
-      records.some(
-        r => r.chassis === chassis && r.popid === popid
-      )
-    ) {
-      setStatus({
-        message: "Este camion ya esta registrado.",
+    if (!chassis && !popid) {
+      setScanStatus({
+        message: "Ingresa al menos un dato antes de registrar.",
         type: "warning",
       });
+
+      return;
+    }
+
+    // Duplicado si se repite Chasis o POP ID
+    const exists = records.some(
+      (record) =>
+        (chassis && record.chassis === chassis) ||
+        (popid && record.popid === popid)
+    );
+
+    if (exists) {
+      setScanStatus({
+        message: "Este Chasis o POP ID ya fue registrado.",
+        type: "warning",
+      });
+
       return;
     }
 
@@ -136,225 +253,366 @@ export default function App() {
 
     try {
       await addRecord(record);
-      setRecords(current => [...current, record]);
+
+      setRecords((current) => [...current, record]);
+
       setChassisNumber("");
       setPopIdNumber("");
       setImage(null);
+
       localStorage.removeItem("scania_draft");
 
-      setStatus({
-        message: `Camion guardado. Total: ${records.length + 1}`,
+      setScanStatus({
+        message: `Camión Registrado. Total: ${records.length + 1}`,
         type: "success",
       });
     } catch (error) {
       console.error(error);
-      setStatus({
-        message: "Error guardando camion.",
+
+      setScanStatus({
+        message: "Error guardando el camión.",
         type: "error",
       });
     }
   };
 
+  // ==========================================================
+  // COMPARTIR
+  // ==========================================================
+
   const handleShare = async () => {
     const result = await shareRecords(records);
 
-    setStatus({
+    setInventoryStatus({
       message: result.message,
       type: result.ok ? "success" : "warning",
     });
   };
+
+  // ==========================================================
+  // DESCARGAR
+  // ==========================================================
 
   const handleDownload = () => {
     if (!records.length) return;
 
     downloadFile(buildCsvFile(records));
 
-    setStatus({
-      message: `CSV generado con ${records.length} camiones.`,
+    setInventoryStatus({
+      message: `Archivo generado con ${records.length} camiones.`,
       type: "success",
     });
   };
 
+  // ==========================================================
+  // ELIMINAR
+  // ==========================================================
+
   const handleClear = async () => {
-    if (!window.confirm(`¿Borrar los ${records.length} registros?`)) {
-      return;
-    }
+    const confirmed = window.confirm(
+      `¿Eliminar los ${records.length} registros?`
+    );
+
+    if (!confirmed) return;
 
     try {
       await clearRecords();
+
       setRecords([]);
+      setChassisNumber("");
+      setPopIdNumber("");
+      setImage(null);
+      setShowNewInventory(false);
+
       localStorage.removeItem("scania_draft");
 
-      setStatus({
+      setScanStatus({
+        message: "",
+        type: "",
+      });
+
+      setInventoryStatus({
         message: "Registros eliminados.",
-        type: "info",
+        type: "success",
       });
     } catch (error) {
       console.error(error);
-      setStatus({
+
+      setInventoryStatus({
         message: "Error eliminando registros.",
         type: "error",
       });
     }
   };
 
+  // ==========================================================
+  // INTERFAZ
+  // ==========================================================
+
   return (
     <div style={styles.page}>
-      <h2 style={styles.title}>Escaner OCR Chasis</h2>
+      <div style={styles.header}>
+        <h1 style={styles.title}>
+          Registro de Inventario
+        </h1>
 
-      <p style={styles.subtitle}>
-        Registro de camiones
-      </p>
-
-      <div style={styles.counter}>
-        <div style={styles.counterLabel}>
-          CAMIONES GUARDADOS
-        </div>
-
-        <div style={styles.counterValue}>
-          {records.length}
+        <div style={styles.date}>
+          {fechaActual}
         </div>
       </div>
 
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        ref={fileInputRef}
-        onChange={handleImageUpload}
-        style={{ display: "none" }}
-      />
+      {/* RESUMEN */}
 
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        disabled={loading}
-        style={styles.primaryButton}
-      >
-        📷 Tomar Foto al Parabrisas
-      </button>
+      <div style={styles.summary}>
+        <div style={styles.summaryLabel}>
+          Camiones Registrados:
+          <span style={styles.summaryValue}>
+            {records.length}
+          </span>
+        </div>
 
-      {image && (
-        <img
-          src={image}
-          alt="Captura"
-          style={styles.preview}
-        />
-      )}
-
-      {status.message && (
-        <p
-          style={{
-            textAlign: "center",
-            fontWeight: "bold",
-            color: statusColor,
-            fontSize: "14px",
-          }}
-        >
-          {status.message}
-        </p>
-      )}
-
-      <div style={styles.fieldBlock}>
-        <label
-          style={{
-            ...styles.label,
-            color: "#0066cc",
-          }}
-        >
-          Numero de Chassis
-        </label>
-
-        <input
-          type="text"
-          inputMode="numeric"
-          value={chassisNumber}
-          onChange={e =>
-            setChassisNumber(
-              e.target.value.replace(/\D/g, "").slice(0, 7)
-            )
-          }
-          style={styles.chassisInput}
-        />
+        {showNewInventory && records.length > 0 && (
+          <button
+            onClick={handleNewInventory}
+            style={styles.newInventoryButton}
+          >
+            Nuevo Inventario
+          </button>
+        )}
       </div>
 
-      <div style={styles.fieldBlock}>
-        <label style={styles.label}>
-          Pop ID
-        </label>
+      {/* ======================================================
+          ESCANEAR
+      ======================================================= */}
+
+      <section style={styles.section}>
+        <h2 style={styles.sectionTitle}>
+          Escanear
+        </h2>
+
+        <div style={styles.sectionDivider} />
 
         <input
-          type="text"
-          inputMode="numeric"
-          value={popIdNumber}
-          onChange={e =>
-            setPopIdNumber(
-              e.target.value.replace(/\D/g, "").slice(0, 6)
-            )
-          }
-          style={styles.popInput}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          ref={fileInputRef}
+          onChange={handleImageUpload}
+          style={{ display: "none" }}
         />
-      </div>
 
-      <button
-        onClick={handleSave}
-        disabled={
-          (!chassisNumber && !popIdNumber) || loading
-        }
-        style={styles.greenButton}
-      >
-        ✅ GUARDAR CAMION
-      </button>
-
-      {!isAndroid && (
         <button
-          onClick={handleShare}
-          disabled={!records.length}
-          style={styles.darkButton}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading}
+          style={styles.primaryButton}
         >
-          📤 COMPARTIR REGISTROS ({records.length})
+          Escanear Camión
         </button>
-      )}
 
-      <button
-        onClick={handleDownload}
-        disabled={!records.length}
-        style={styles.secondaryButton}
-      >
-        📥 DESCARGAR CSV ({records.length})
-      </button>
+        {image && (
+          <img
+            src={image}
+            alt="Captura del vehículo"
+            style={styles.preview}
+          />
+        )}
 
-      {records.length > 0 && (
-        <div style={styles.listHeader}>
-          <h3>Registros</h3>
+        {scanStatus.message && (
+          <p
+            style={{
+              margin: "10px 0 0",
+              textAlign: "center",
+              fontWeight: 600,
+              color: scanStatusColor,
+              fontSize: "14px",
+            }}
+          >
+            {scanStatus.message}
+          </p>
+        )}
 
-          <div style={styles.list}>
-            {records.map((record, index) => (
-              <div
-                key={`${record.chassis}-${record.popid}-${index}`}
-                style={{
-                  ...styles.recordItem,
-                  borderBottom: "1px solid #eee",
-                }}
-              >
-                <strong>
-                  {index + 1}. {record.chassis}
-                </strong>
+        <div style={styles.infoCard}>
+          <div style={styles.fieldBlock}>
+            <label style={styles.label}>
+              Número de Chasis
+            </label>
 
-                <div>
-                  POP: {record.popid}
-                </div>
-              </div>
-            ))}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={chassisNumber}
+              onChange={(event) =>
+                setChassisNumber(
+                  event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 7)
+                )
+              }
+              style={styles.chassisInput}
+            />
+          </div>
+
+          <div style={styles.fieldBlockSpaced}>
+            <label style={styles.label}>
+              POP ID
+            </label>
+
+            <input
+              type="text"
+              inputMode="numeric"
+              value={popIdNumber}
+              onChange={(event) =>
+                setPopIdNumber(
+                  event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 6)
+                )
+              }
+              style={styles.popInput}
+            />
           </div>
 
           <button
-            onClick={handleClear}
-            style={styles.dangerButton}
+            onClick={handleSave}
+            disabled={
+              (!chassisNumber && !popIdNumber) ||
+              loading
+            }
+            style={styles.secondaryPrimaryButton}
           >
-            🗑️ BORRAR TODOS LOS REGISTROS
+            Registrar Camión
           </button>
         </div>
-      )}
+      </section>
+
+      {/* ======================================================
+          INVENTARIO
+      ======================================================= */}
+
+      <section style={styles.section}>
+        <h2 style={styles.sectionTitle}>
+          Inventario
+        </h2>
+
+        <div style={styles.sectionDivider} />
+
+        <div style={styles.actionRow}>
+          {!isAndroid && (
+            <button
+              onClick={handleShare}
+              disabled={!records.length}
+              style={styles.secondaryButton}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+                <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+              </svg>
+
+              Compartir
+            </button>
+          )}
+
+          <button
+            onClick={handleDownload}
+            disabled={!records.length}
+            style={styles.secondaryButton}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+
+            Descargar
+          </button>
+        </div>
+
+        {/* Mensaje del bloque Inventario */}
+
+        {inventoryStatus.message && (
+          <p
+            style={{
+              margin: "10px 0 0",
+              textAlign: "center",
+              fontWeight: 600,
+              color: inventoryStatusColor,
+              fontSize: "14px",
+            }}
+          >
+            {inventoryStatus.message}
+          </p>
+        )}
+
+        {/* TABLA */}
+
+        {records.length > 0 && (
+          <>
+            <div style={styles.listHeader}>
+              <h3 style={styles.listTitle}>
+                Camiones Registrados
+              </h3>
+
+              <div style={styles.list}>
+                <div style={styles.listHeaderRow}>
+                  <div>Chasis</div>
+                  <div>POP ID</div>
+                </div>
+
+                {records.map((record, index) => (
+                  <div
+                    key={`${record.chassis}-${record.popid}-${index}`}
+                    style={{
+                      ...styles.recordItem,
+                      borderBottom:
+                        index < records.length - 1
+                          ? "1px solid #D9E0E8"
+                          : "none",
+                    }}
+                  >
+                    <div style={styles.recordChassis}>
+                      {record.chassis || "-"}
+                    </div>
+
+                    <div style={styles.recordPop}>
+                      {record.popid || "-"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleClear}
+              style={styles.dangerButton}
+            >
+              Eliminar Todos los Registros
+            </button>
+          </>
+        )}
+      </section>
     </div>
   );
 }
